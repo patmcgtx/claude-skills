@@ -118,6 +118,19 @@ It prints one JSON object to stdout with everything needed for the report:
   this one flags whole projects that have been open for 6+ months regardless
   of how active their to-dos are — a project can have brisk to-do turnover
   and still never actually finish.
+- `monthly_active_projects` — a full-history (not period-bounded) monthly time
+  series: `{month: "YYYY-MM", active_projects: N}` for every month from the
+  earliest project's creation through the report's end month. A project counts
+  toward month M if it existed by then and hadn't been completed/canceled
+  before M (it counts through the month it wraps up in, not just months
+  strictly before that). Same exclusion rules as everywhere else. This one
+  isn't part of the standard five-section report — it's for when the user
+  specifically asks for a chart/visual/trend of open or active project count
+  over time. Render it with the `visualize` tool's `chart` module as a
+  single-hue filled line chart (x = month, y = `active_projects`); skip
+  labels aggressively (10-ish ticks) since the series can run 100+ months.
+  Don't describe it as a literal Agile burndown (it can rise as well as
+  fall) — call it a project-count trend instead.
 
 Read `references/schema.md` if the user asks for something the script doesn't
 cover (e.g. filtering to one specific area or tag in isolation) — it has the

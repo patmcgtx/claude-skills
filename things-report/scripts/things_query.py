@@ -375,6 +375,65 @@ def worth_closing_out(projects, max_open=10, min_pct=80, limit=15):
     return sorted(candidates, key=lambda x: -x["pct_done"])[:limit]
 
 
+def monthly_active_project_counts(conn, end):
+    """Count of active (open, non-excluded, non-trashed) projects at each
+    calendar month from the earliest project's creation through the report's
+    end month -- a burndown-style view of how many projects have been "in
+    flight" over time. A project counts toward a given month if it was
+    created on or before that month and hadn't stopped (completed/canceled)
+    before that month, i.e. it counts through the month it wraps up in, not
+    just months entirely before that."""
+    rows = conn.execute(
+        """
+        SELECT p.title, p.trashed, p.creationDate, p.stopDate, area.title AS area_title
+        FROM TMTask p
+        LEFT JOIN TMArea area ON p.area = area.uuid
+        WHERE p.type = ? AND p.trashed = 0
+        """,
+        (TYPE_PROJECT,),
+    ).fetchall()
+
+    spans = []
+    for p in rows:
+        if is_excluded_area(p["area_title"]) or is_excluded_project_title(p["title"]):
+            continue
+        if not p["creationDate"]:
+            continue
+        creation_month = datetime.fromtimestamp(p["creationDate"], tz=timezone.utc).strftime("%Y-%m")
+        stop_month = (
+            datetime.fromtimestamp(p["stopDate"], tz=timezone.utc).strftime("%Y-%m")
+            if p["stopDate"]
+            else None
+        )
+        spans.append((creation_month, stop_month))
+
+    if not spans:
+        return []
+
+    current_month = end.strftime("%Y-%m")
+    earliest_month = min(s[0] for s in spans)
+
+    months = []
+    year, month = (int(x) for x in earliest_month.split("-"))
+    cur_year, cur_month = (int(x) for x in current_month.split("-"))
+    while (year, month) <= (cur_year, cur_month):
+        months.append(f"{year:04d}-{month:02d}")
+        month += 1
+        if month > 12:
+            month = 1
+            year += 1
+
+    return [
+        {
+            "month": m,
+            "active_projects": sum(
+                1 for creation, stop in spans if creation <= m and (stop is None or stop >= m)
+            ),
+        }
+        for m in months
+    ]
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--days", type=int, default=30, help="Length of the report period.")
@@ -416,6 +475,7 @@ def main():
         "projects": projects,
         "projects_worth_closing_out": worth_closing_out(projects),
         "stale_projects": stale_projects(projects, end),
+        "monthly_active_projects": monthly_active_project_counts(conn, end),
     }
     conn.close()
     print(json.dumps(output, indent=2))
