@@ -296,7 +296,7 @@ def query_backlog(conn, today, excluded_project_uuids):
 def query_projects(conn):
     projects = conn.execute(
         """
-        SELECT p.uuid, p.title, p.status, p.trashed, area.title AS area_title
+        SELECT p.uuid, p.title, p.status, p.trashed, p.creationDate, area.title AS area_title
         FROM TMTask p
         LEFT JOIN TMArea area ON p.area = area.uuid
         WHERE p.type = ? AND p.trashed = 0
@@ -330,6 +330,9 @@ def query_projects(conn):
                 "completed_count": done_n,
                 "canceled_count": canceled_n,
                 "pct_done": round(100 * done_n / total, 1) if total else None,
+                "created": datetime.fromtimestamp(p["creationDate"], tz=timezone.utc).date().isoformat()
+                if p["creationDate"]
+                else None,
             }
         )
     return sorted(result, key=lambda x: -x["open_count"])
@@ -348,6 +351,16 @@ def repeatedly_canceled(canceled_titles, min_count=3, limit=15):
         [{"title": t, "count": n} for t, n in counts.items() if n >= min_count],
         key=lambda x: -x["count"],
     )[:limit]
+
+
+def stale_projects(projects, end, min_age_days=182):
+    """Active (still-open) projects created more than ~6 months ago, newest
+    first. A project that's been sitting open that long without wrapping up
+    is worth a second look -- either push it forward or consciously drop it,
+    rather than letting it linger indefinitely."""
+    cutoff = (end - timedelta(days=min_age_days)).date().isoformat()
+    candidates = [p for p in projects if p["active"] and p["created"] and p["created"] < cutoff]
+    return sorted(candidates, key=lambda x: x["created"], reverse=True)
 
 
 def worth_closing_out(projects, max_open=10, min_pct=80, limit=15):
@@ -402,6 +415,7 @@ def main():
         "backlog": query_backlog(conn, end, excluded_project_uuids),
         "projects": projects,
         "projects_worth_closing_out": worth_closing_out(projects),
+        "stale_projects": stale_projects(projects, end),
     }
     conn.close()
     print(json.dumps(output, indent=2))

@@ -102,13 +102,22 @@ It prints one JSON object to stdout with everything needed for the report:
   "Waiting" piling up, since that means things stuck on someone else, not on
   the user).
 - `projects` — every non-trashed project with its area, open/completed/
-  canceled counts, and `pct_done` (completed ÷ (completed + open), canceled
+  canceled counts, `pct_done` (completed ÷ (completed + open), canceled
   excluded from the denominator since abandoning items shouldn't count against
-  completion rate).
+  completion rate), and `created` (the project's own creation date, ISO
+  format, or `null` if unavailable).
 - `projects_worth_closing_out` — active projects that are ≥80% done with 10 or
   fewer items left, already sorted by `pct_done` descending. This is
   precomputed rather than left to filter ad hoc from `projects`, so use it
   directly for the "worth closing out" callout instead of re-deriving it.
+- `stale_projects` — active (still-open) projects created more than ~6 months
+  before the report's end date, sorted newest to oldest. Precomputed from the
+  same `created` field on `projects`, so use it directly rather than
+  re-filtering. This is a different notion of "stale" than `backlog.
+  stale_oldest_20`: that one flags individual to-dos untouched for 90+ days,
+  this one flags whole projects that have been open for 6+ months regardless
+  of how active their to-dos are — a project can have brisk to-do turnover
+  and still never actually finish.
 
 Read `references/schema.md` if the user asks for something the script doesn't
 cover (e.g. filtering to one specific area or tag in isolation) — it has the
@@ -171,6 +180,15 @@ List `projects_worth_closing_out` directly (already filtered and sorted) —
 these are the projects sitting at 80%+ done with only a handful of items
 left. Frame it as a nudge: finishing these clears real backlog for very
 little remaining work, unlike starting something new.
+
+### Stale (6+ months old)
+List `stale_projects` directly (already filtered, newest to oldest) — active
+projects that have been open for more than ~6 months. Include each one's
+`created` date, area, `open_count`, and `pct_done` so the user can judge
+which ones are actually stalled versus just long-running by nature. Frame it
+as "worth a decision" rather than a failure: for each, the real options are
+push it forward, or consciously drop/cancel it — not just let it keep aging.
+If the list is empty, say so briefly rather than omitting the section.
 ```
 
 Ground every number in the JSON — don't estimate or round in ways that misrepresent
