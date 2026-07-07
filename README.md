@@ -7,7 +7,7 @@ Personal [Claude Code](https://claude.com/claude-code) skills. Each subdirectory
 Claude Code loads skills from `~/.claude/skills/`. Clone this repo there directly, or symlink it in:
 
 ```sh
-git clone https://github.com/Pat-McG-Org/claude-skills.git ~/.claude/skills
+git clone git@github.com:patmcgtx/claude-skills.git ~/.claude/skills
 ```
 
 New skills added here are picked up automatically — no restart needed.
