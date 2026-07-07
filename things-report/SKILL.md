@@ -36,23 +36,40 @@ below. Use it rather than reimplementing these queries — it's easy to get
 subtly wrong data by skipping any of these steps.
 
 It also excludes, everywhere (completed, canceled, backlog, projects), any
-project that is (a) trashed, (b) filed under an area with "people", "Girlz",
-"backlog", or "recurring" in its name, or (c) has "backlog" or "recurring" in
-its own project name — case-insensitive substring match for (b) and (c). (a)
-is a data-integrity fix (see point 3 above); (b) and (c) are the user's
-standing preference that personal/relationship-tracking, generic idea-dump
-piles, and evergreen recurring buckets (e.g. an area or project literally
-named "Recurring & long term", or a "Weekly"/"Monthly"/"Yearly" bucket living
-in one) aren't "get it done" work and shouldn't clutter a productivity
-report — they never reach "done" by design, so counting them as backlog or
+to-do or project that is (a) trashed, (b) filed under an area with "people",
+"backlog", or "recurring" in its name, (c) itself named with "backlog" or
+"recurring" in it, or (d) tagged **"Exclude"** (the area, or the project/to-do
+itself) — case-insensitive substring match for (b) and (c). (a) is a
+data-integrity fix (see point 3 above); (b)-(d) are the user's standing
+preference that personal/relationship-tracking, generic idea-dump piles, and
+evergreen recurring buckets (e.g. an area or project literally named
+"Recurring & long term", or a "Weekly"/"Monthly"/"Yearly" bucket living in
+one) aren't "get it done" work and shouldn't clutter a productivity report —
+they never reach "done" by design, so counting them as backlog or
 open-project noise is misleading. (c) caught things like "IG story Backlog"
 and "Apps to try backlog" that lived in otherwise-normal areas and slipped
-through the area-only rule.
+through the area-only rule. (d) is the durable, no-code-edit way to exclude
+something new: the user previously had a hardcoded "Girlz" name match here,
+which broke the moment an area got renamed and didn't catch other
+personal/relationship areas at all — tagging the area (or a specific project)
+"Exclude" in Things now does the same job without a script edit, and survives
+renames.
 This is a hardcoded exclusion (`is_excluded_area` / `is_excluded_project_title`
-/ `get_excluded_project_uuids` in the script), not a per-run flag — if the
-user ever wants a report that includes them, or wants to exclude a different
-area, edit that function rather
-than trying to filter the JSON output after the fact.
+/ `get_excluded_area_uuids` / `get_excluded_project_uuids` /
+`task_exclusion_clause` in the script) for (a)-(c); (d) is user-editable
+entirely from within Things — just tag the area or project "Exclude" and
+re-run the script. If the user wants a *different* name-keyword excluded, or
+wants (a)-(c) relaxed, edit those functions rather than trying to filter the
+JSON output after the fact.
+
+Note that the exclusion has to be applied at the to-do level, not just the
+project level: a to-do filed directly in an excluded area with no project in
+between carries that area on its own `area` column rather than inheriting it
+from a project, so `task_exclusion_clause` checks both `t.project` (against
+excluded project uuids) and `t.area` (against excluded area uuids) on every
+completed/canceled/backlog query. Checking only `t.project` looks correct
+until an area has any standalone to-dos in it — which is exactly the shape a
+"Someday-adjacent" personal area tends to take.
 
 ## Running it
 

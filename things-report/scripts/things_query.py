@@ -42,17 +42,21 @@ NOT_A_TEMPLATE = "rt1_recurrenceRule IS NULL"
 # Verified against things.py (thingsapi/things.py) convert_thingsdate_*.
 Y_MASK, M_MASK, D_MASK = 0b111111111110000000000000000, 0b1111000000000000, 0b111110000000
 
-# User preference: projects filed under these areas -- or whose own name
-# reads as a generic idea-dump backlog or an evergreen recurring bucket -- are
-# personal/relationship tracking, "someday maybe" piles, or Weekly/Monthly/
-# Yearly-style buckets that never reach "done", not "get it done" work, so
-# they're excluded from every part of the report (completed, canceled,
-# backlog, projects).
+# User preference: to-dos filed under these areas (directly, or via a project
+# filed there) -- or whose own project name reads as a generic idea-dump
+# backlog or an evergreen recurring bucket -- are personal/relationship
+# tracking, "someday maybe" piles, or Weekly/Monthly/Yearly-style buckets that
+# never reach "done", not "get it done" work, so they're excluded from every
+# part of the report (completed, canceled, backlog, projects). Areas or
+# projects tagged "Exclude" in Things are the user's explicit opt-out and are
+# excluded the same way -- this replaced a hardcoded "girlz" name match,
+# since tagging the area directly is more durable than matching on its
+# current name, and also survives renames.
 def is_excluded_area(area_title):
     if not area_title:
         return False
     lowered = area_title.lower()
-    return any(keyword in lowered for keyword in ("people", "girlz", "backlog", "recurring"))
+    return any(keyword in lowered for keyword in ("people", "backlog", "recurring"))
 
 
 def is_excluded_project_title(project_title):
@@ -62,15 +66,45 @@ def is_excluded_project_title(project_title):
     return any(keyword in lowered for keyword in ("backlog", "recurring"))
 
 
-def get_excluded_project_uuids(conn):
+def get_excluded_area_uuids(conn):
+    """Areas to exclude: name-keyword matches, plus anything tagged 'Exclude'.
+    Used both to drop projects filed under these areas AND to drop standalone
+    to-dos filed directly in the area with no project (the old name-keyword
+    check only ever ran against projects, so a to-do sitting directly in an
+    excluded area -- no project in between -- was never actually excluded)."""
+    rows = conn.execute("SELECT uuid, title FROM TMArea").fetchall()
+    tagged = {
+        r[0]
+        for r in conn.execute(
+            """
+            SELECT at.areas FROM TMAreaTag at
+            JOIN TMTag tg ON at.tags = tg.uuid
+            WHERE tg.title = 'Exclude'
+            """
+        ).fetchall()
+    }
+    return {r[0] for r in rows if is_excluded_area(r[1]) or r[0] in tagged}
+
+
+def get_excluded_project_uuids(conn, excluded_area_uuids):
     """Projects to drop from every part of the report: trashed projects (their
     to-dos keep trashed=0 even after the parent project is trashed, so they'd
     otherwise leak into completed/canceled/backlog counts as orphans), plus
-    the user's standing area/name exclusions."""
+    projects filed under an excluded area, plus projects whose own name/tag
+    marks them excluded."""
+    tagged = {
+        r[0]
+        for r in conn.execute(
+            """
+            SELECT tt.tasks FROM TMTaskTag tt
+            JOIN TMTag tg ON tt.tags = tg.uuid
+            WHERE tg.title = 'Exclude'
+            """
+        ).fetchall()
+    }
     rows = conn.execute(
         """
-        SELECT p.uuid, p.title, p.trashed, a.title AS area_title FROM TMTask p
-        LEFT JOIN TMArea a ON p.area = a.uuid
+        SELECT p.uuid, p.title, p.trashed, p.area FROM TMTask p
         WHERE p.type = ?
         """,
         (TYPE_PROJECT,),
@@ -78,17 +112,26 @@ def get_excluded_project_uuids(conn):
     return {
         r[0]
         for r in rows
-        if r[2] == 1 or is_excluded_area(r[3]) or is_excluded_project_title(r[1])
+        if r[2] == 1
+        or r[3] in excluded_area_uuids
+        or is_excluded_project_title(r[1])
+        or r[0] in tagged
     }
 
 
-def project_exclusion_clause(excluded_uuids, column):
-    """Returns a SQL fragment + params excluding rows whose `column` (a project
-    uuid) is in excluded_uuids. Safe to AND into any WHERE clause."""
-    if not excluded_uuids:
-        return "1=1", []
-    placeholders = ",".join(["?"] * len(excluded_uuids))
-    return f"({column} IS NULL OR {column} NOT IN ({placeholders}))", list(excluded_uuids)
+def task_exclusion_clause(excluded_project_uuids, excluded_area_uuids):
+    """Returns a SQL fragment + params excluding to-dos that are either in an
+    excluded project (t.project) or filed directly in an excluded area with no
+    project (t.area) -- standalone to-dos carry their area on the task row
+    itself, since there's no project to inherit it from. Safe to AND into any
+    WHERE clause over TMTask aliased as t."""
+    clauses, params = [], []
+    for column, uuids in (("t.project", excluded_project_uuids), ("t.area", excluded_area_uuids)):
+        if uuids:
+            placeholders = ",".join(["?"] * len(uuids))
+            clauses.append(f"({column} IS NULL OR {column} NOT IN ({placeholders}))")
+            params.extend(uuids)
+    return (" AND ".join(clauses) if clauses else "1=1"), params
 
 
 def decode_thingsdate(value):
@@ -151,9 +194,9 @@ def connect(db_path):
     return conn
 
 
-def query_stopped(conn, status, period_start, period_end, excluded_project_uuids):
+def query_stopped(conn, status, period_start, period_end, excluded_project_uuids, excluded_area_uuids):
     """Shared shape for anything with a stopDate in range: completed or canceled."""
-    exclusion_sql, exclusion_params = project_exclusion_clause(excluded_project_uuids, "t.project")
+    exclusion_sql, exclusion_params = task_exclusion_clause(excluded_project_uuids, excluded_area_uuids)
     rows = conn.execute(
         """
         SELECT t.uuid, t.title, t.stopDate,
@@ -203,8 +246,8 @@ def query_stopped(conn, status, period_start, period_end, excluded_project_uuids
     }
 
 
-def query_backlog(conn, today, excluded_project_uuids):
-    exclusion_sql, exclusion_params = project_exclusion_clause(excluded_project_uuids, "t.project")
+def query_backlog(conn, today, excluded_project_uuids, excluded_area_uuids):
+    exclusion_sql, exclusion_params = task_exclusion_clause(excluded_project_uuids, excluded_area_uuids)
     rows = conn.execute(
         """
         SELECT t.uuid, t.title, t.start, t.deadline, t.creationDate,
@@ -293,7 +336,7 @@ def query_backlog(conn, today, excluded_project_uuids):
     }
 
 
-def query_projects(conn):
+def query_projects(conn, excluded_project_uuids):
     projects = conn.execute(
         """
         SELECT p.uuid, p.title, p.status, p.trashed, p.creationDate, area.title AS area_title
@@ -306,7 +349,7 @@ def query_projects(conn):
 
     result = []
     for p in projects:
-        if is_excluded_area(p["area_title"]) or is_excluded_project_title(p["title"]):
+        if p["uuid"] in excluded_project_uuids:
             continue
         counts = conn.execute(
             """
@@ -375,7 +418,7 @@ def worth_closing_out(projects, max_open=10, min_pct=80, limit=15):
     return sorted(candidates, key=lambda x: -x["pct_done"])[:limit]
 
 
-def monthly_active_project_counts(conn, end):
+def monthly_active_project_counts(conn, end, excluded_project_uuids):
     """Count of active (open, non-excluded, non-trashed) projects at each
     calendar month from the earliest project's creation through the report's
     end month -- a burndown-style view of how many projects have been "in
@@ -385,7 +428,7 @@ def monthly_active_project_counts(conn, end):
     just months entirely before that."""
     rows = conn.execute(
         """
-        SELECT p.title, p.trashed, p.creationDate, p.stopDate, area.title AS area_title
+        SELECT p.uuid, p.title, p.trashed, p.creationDate, p.stopDate, area.title AS area_title
         FROM TMTask p
         LEFT JOIN TMArea area ON p.area = area.uuid
         WHERE p.type = ? AND p.trashed = 0
@@ -395,7 +438,7 @@ def monthly_active_project_counts(conn, end):
 
     spans = []
     for p in rows:
-        if is_excluded_area(p["area_title"]) or is_excluded_project_title(p["title"]):
+        if p["uuid"] in excluded_project_uuids:
             continue
         if not p["creationDate"]:
             continue
@@ -454,14 +497,15 @@ def main():
     db_path = resolve_db_path(args.db)
     conn = connect(db_path)
 
-    excluded_project_uuids = get_excluded_project_uuids(conn)
+    excluded_area_uuids = get_excluded_area_uuids(conn)
+    excluded_project_uuids = get_excluded_project_uuids(conn, excluded_area_uuids)
 
-    completed = query_stopped(conn, STATUS_COMPLETE, start, end, excluded_project_uuids)
-    completed_prior = query_stopped(conn, STATUS_COMPLETE, prior_start, start, excluded_project_uuids)
-    canceled = query_stopped(conn, STATUS_CANCELED, start, end, excluded_project_uuids)
-    canceled_prior = query_stopped(conn, STATUS_CANCELED, prior_start, start, excluded_project_uuids)
+    completed = query_stopped(conn, STATUS_COMPLETE, start, end, excluded_project_uuids, excluded_area_uuids)
+    completed_prior = query_stopped(conn, STATUS_COMPLETE, prior_start, start, excluded_project_uuids, excluded_area_uuids)
+    canceled = query_stopped(conn, STATUS_CANCELED, start, end, excluded_project_uuids, excluded_area_uuids)
+    canceled_prior = query_stopped(conn, STATUS_CANCELED, prior_start, start, excluded_project_uuids, excluded_area_uuids)
     canceled["repeatedly_canceled"] = repeatedly_canceled(canceled["titles"])
-    projects = query_projects(conn)
+    projects = query_projects(conn, excluded_project_uuids)
 
     output = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -471,11 +515,11 @@ def main():
         "completed_prior_period": {"total": completed_prior["total"]},
         "canceled": canceled,
         "canceled_prior_period": {"total": canceled_prior["total"]},
-        "backlog": query_backlog(conn, end, excluded_project_uuids),
+        "backlog": query_backlog(conn, end, excluded_project_uuids, excluded_area_uuids),
         "projects": projects,
         "projects_worth_closing_out": worth_closing_out(projects),
         "stale_projects": stale_projects(projects, end),
-        "monthly_active_projects": monthly_active_project_counts(conn, end),
+        "monthly_active_projects": monthly_active_project_counts(conn, end, excluded_project_uuids),
     }
     conn.close()
     print(json.dumps(output, indent=2))
