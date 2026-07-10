@@ -17,6 +17,7 @@ New skills added here are picked up automatically — no restart needed.
 | Skill | Description |
 |---|---|
 | [things-report](things-report/SKILL.md) | Reports on a Things.app to-do database: completed-work summaries, backlog health, velocity trends, per-project breakdowns, and stale/aging-project callouts. |
+| [ynab-budget-review](ynab-budget-review/SKILL.md) | Reviews a YNAB Budget CSV export and summarizes budget health, including overspending, low categories, unbudgeted spending, and notable trends. |
 
 ## Layout
 
