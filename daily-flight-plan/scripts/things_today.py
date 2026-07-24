@@ -240,6 +240,7 @@ def main():
     parser.add_argument("--end", default=None, help="ISO date to treat as 'today' (default: today).")
     args = parser.parse_args()
 
+    # Things' Today view is based on the user's local calendar date, not UTC.
     end = (
         datetime.fromisoformat(args.end)
         if args.end

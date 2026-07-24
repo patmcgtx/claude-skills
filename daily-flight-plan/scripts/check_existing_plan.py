@@ -106,7 +106,7 @@ def main():
     for r in rows:
         text = r["ZMARKDOWNTEXT"] or ""
         lines = text.splitlines()
-        first_line = lines[0].strip() if lines else ""
+        first_line = (lines[0] if lines else "").strip()
         if first_line != MARKER:
             continue
         created = None
