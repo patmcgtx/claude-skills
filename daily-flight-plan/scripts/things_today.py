@@ -202,10 +202,20 @@ def query_today_items(conn, end_date):
             ).fetchall()
         ]
         section = target_section(tags)
-        group = r["project_title"] or r["area_title"]
+        # A to-do's project takes precedence over its area as the subgroup
+        # label -- COALESCE(t.area, proj.area) in the query above means
+        # area_title is only ever the *project's* area when a project is
+        # present, so checking project_title first here never masks a more
+        # specific area.
+        if r["project_title"]:
+            group, kind = r["project_title"], "project"
+        elif r["area_title"]:
+            group, kind = r["area_title"], "area"
+        else:
+            group, kind = None, None
         bucket = sections[section]
         if group:
-            bucket.setdefault(group, []).append(r["title"])
+            bucket.setdefault((kind, group), []).append(r["title"])
         else:
             bucket["__ungrouped__"].append(r["title"])
 
@@ -214,10 +224,11 @@ def query_today_items(conn, end_date):
         if section not in sections:
             continue
         bucket = sections[section]
-        items = [{"title": t, "group": None} for t in bucket["__ungrouped__"]]
-        for group in sorted(k for k in bucket if k != "__ungrouped__"):
-            for t in bucket[group]:
-                items.append({"title": t, "group": group})
+        items = [{"title": t, "group": None, "group_kind": None} for t in bucket["__ungrouped__"]]
+        group_keys = sorted((k for k in bucket if k != "__ungrouped__"), key=lambda k: k[1])
+        for kind, group in group_keys:
+            for t in bucket[(kind, group)]:
+                items.append({"title": t, "group": group, "group_kind": kind})
         if items:
             out[section] = items
     return out

@@ -89,10 +89,16 @@ applied consistently every run.
 Read `references/daily_flight_plan_template.md` — it has the exact template
 text (confirmed headings vs. bold, checkboxes vs. plain bullets against a
 real entry) with the placeholders and formatting rules for each, including
-how to render `things_today.py`'s grouped output as bold-labeled
-sub-lists. Fill those in from steps 2-3; leave Basics and Inboxes exactly as
-written in the reference — those are the user's own daily-habit checklist,
-not data-driven, and shouldn't be touched.
+how to render `things_today.py`'s grouped output as sub-headings (area
+groups as `## `, project groups as `### `). Fill those in from steps 2-3;
+leave Basics and Inboxes exactly as written in the reference — those are the
+user's own daily-habit checklist, not data-driven, and shouldn't be touched.
+
+One placeholder, `{{DAY_SUMMARY}}`, is prose rather than a checklist — a
+short 1-3 sentence read of the day based only on Time-sensitive and Agenda,
+written fresh each time rather than templated. See the reference file for
+tone/length examples; this is the one part of the entry that calls for
+actual composition rather than mechanical formatting of script output.
 
 Section order is fixed: **Time-sensitive, Agenda, Basics, Inboxes**, then
 the rest, exactly as laid out in the reference file. Fill placeholders into

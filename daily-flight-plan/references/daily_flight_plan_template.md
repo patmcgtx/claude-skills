@@ -22,6 +22,8 @@ data is or isn't present on a given day.
 # 🚀 Daily Flight Plan
 *What is today's purpose? Who do I want to be?*
 
+{{DAY_SUMMARY}}
+
 ## Time-sensitive
 
 {{TIME_SENSITIVE}}
@@ -90,6 +92,32 @@ than only adding it conditionally, so the structure stays predictable.
 
 ## Filling the placeholders
 
+### `{{DAY_SUMMARY}}`
+
+Unlike every other placeholder, this one isn't a checklist — it's a short
+plain-text paragraph (1-3 sentences, no heading, no bullets) giving a quick
+read of the day at a glance, right under the "What is today's purpose?"
+prompt. Base it only on the **Time-sensitive** items and the **Agenda**
+(calendar) — don't summarize People & phone, Work, Laptop, Home, Other, or
+any of the fixed scaffold sections; the point is a fast read of what's
+urgent and what's scheduled, not a recap of the whole entry.
+
+Write it fresh each day from that day's actual data rather than a fixed
+template sentence — vary the phrasing naturally rather than always starting
+the same way. Mention counts and specifics that matter (a tight morning, a
+deadline item, a packed afternoon), not a mechanical restatement of every
+line. If both are empty, a single honest sentence is fine (e.g. "Nothing
+time-sensitive and nothing on the calendar today — a clear one."). Examples
+of the right length/tone:
+
+- "One time-sensitive item (plantar fasciitis PT) and a full day on the
+  calendar — three work meetings between 9:30 and 3:30, plus picking up
+  Claire's PC this evening."
+- "Nothing time-sensitive today. Light calendar — just Andrew's birthday
+  and the standup this morning."
+- "Two deadline items to watch, and back-to-back meetings from 10 to 2 — a
+  tighter day than usual."
+
 Run `scripts/things_today.py` — it returns one JSON object keyed by section
 name (`"Time-sensitive"`, `"People & phone"`, `"Work"`, `"Professional
 Growth"`, `"Physical"`, `"Laptop"`, `"Home"`, `"Other"`), already sorted and
@@ -101,17 +129,27 @@ For each of those eight section keys, render its items like this:
 
 - Items with `"group": null` — plain `- [ ] {title}` lines, no label, listed
   first.
-- Items with a non-null `"group"` — group consecutive items under a bold
-  label line for the group name, blank line before each new group:
+- Items with a non-null `"group"` — group consecutive items under a heading
+  line for the group name, blank line before each new group. The heading
+  level depends on `"group_kind"`: **`"area"` → `## {group}`** (Heading 2),
+  **`"project"` → `### {group}`** (Heading 3) — matches Things' own
+  hierarchy (an area can contain projects, so its label outranks one):
   ```
-  **{group}**
+  ## {area group}
   - [ ] {title}
+
+  ### {project group}
   - [ ] {title}
   ```
 - If a section has **no** Things items and no fixed scaffold lines of its
   own (Time-sensitive, People & phone, Laptop, Home, Other), use a single
   line: `- [ ] Nothing here today` — otherwise the heading would be bare
   with nothing under it.
+- Don't put a blank line between the section's own `## Heading` and the
+  first group heading right under it (e.g. `## Time-sensitive` immediately
+  followed by `### Some Project`, no gap) — only *between* groups, and
+  between the last group and the next section. An extra blank line there is
+  a easy copy-paste mistake that reads as a stray empty line in Day One.
 - Work, Professional Growth, and Physical always have their own fixed
   scaffold lines regardless of Things data (see the template above) — if
   `things_today.py` has no items for one of them, just omit the placeholder
