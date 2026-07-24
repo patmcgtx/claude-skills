@@ -94,6 +94,12 @@ sub-lists. Fill those in from steps 2-3; leave Basics and Inboxes exactly as
 written in the reference — those are the user's own daily-habit checklist,
 not data-driven, and shouldn't be touched.
 
+Section order is fixed: **Time-sensitive, Agenda, Basics, Inboxes**, then
+the rest, exactly as laid out in the reference file. Fill placeholders into
+that template in place rather than generating sections separately and
+concatenating them — that guarantees the order every time regardless of
+which sections have data on a given day.
+
 ## Step 5: Create the entry
 
 ```bash

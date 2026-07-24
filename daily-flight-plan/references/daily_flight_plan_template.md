@@ -12,6 +12,12 @@ sort of the Things Today list (see that script's docstring for the mapping
 rules and priority order). Basics and Inboxes are always reproduced exactly
 as-is, untouched — pure daily-habit checklists with no data source.
 
+**Section order is fixed and always: Time-sensitive, Agenda, Basics,
+Inboxes, then everything else in the order shown below.** Fill each
+section's content in place within this template rather than reassembling
+the document from parts — that way the order can't drift no matter what
+data is or isn't present on a given day.
+
 ```markdown
 # 🚀 Daily Flight Plan
 *What is today's purpose? Who do I want to be?*

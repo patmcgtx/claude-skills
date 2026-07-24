@@ -11,6 +11,22 @@ past (2019, 2021...), clearly stale remnants from before the to-do was
 demoted to Someday, not things Things' own Today perspective would ever
 show. Filtering to start=1 only matches what the app actually displays.
 
+Two more orphan traps, same root cause as the trashed-project issue documented
+in the things-report skill (trashed=0 doesn't cascade to children in this
+schema):
+  - A recurring to-do's generated instances point back at their template row
+    via rt1_repeatingTemplate. If the user deletes/trashes the recurring
+    template itself, already-generated instance rows can be left behind with
+    trashed=0 and status=0 forever -- confirmed on this user's real data: a
+    "Take Vitamin B12" template trashed back in ~2019 left 15 such ghost
+    instances sitting open, 3 of which had startDate <= today and would
+    otherwise show up as real Today items every single day indefinitely.
+    Excluded via `tmpl.trashed = 0`.
+  - Similarly, a to-do's own status can stay open even after its parent
+    project is marked completed or canceled -- excluded via `proj.status = 0`
+    (no matches on this user's data yet, but the shape of the bug is
+    identical, so it's excluded defensively rather than waiting to hit it).
+
 Section mapping, in priority order (an item can carry tags matching more
 than one rule -- first match wins, so the order here is the actual policy,
 not just an implementation detail):
@@ -150,12 +166,16 @@ def query_today_items(conn, end_date):
     rows = conn.execute(
         """
         SELECT t.uuid, t.title, t.startDate,
-               proj.title AS project_title, area.title AS area_title
+               proj.title AS project_title, area.title AS area_title,
+               proj.status AS project_status, tmpl.trashed AS template_trashed
         FROM TMTask t
         LEFT JOIN TMTask proj ON t.project = proj.uuid
         LEFT JOIN TMArea area ON COALESCE(t.area, proj.area) = area.uuid
+        LEFT JOIN TMTask tmpl ON t.rt1_repeatingTemplate = tmpl.uuid
         WHERE t.type = ? AND t.status = ? AND t.trashed = 0 AND t.{not_template}
           AND t.start = ? AND t.startDate IS NOT NULL
+          AND (t.rt1_repeatingTemplate IS NULL OR tmpl.trashed = 0)
+          AND (proj.uuid IS NULL OR proj.status = 0)
         """.format(not_template=NOT_A_TEMPLATE),
         (TYPE_TODO, STATUS_OPEN, START_ANYTIME),
     ).fetchall()
