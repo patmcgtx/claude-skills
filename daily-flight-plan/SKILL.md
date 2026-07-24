@@ -1,6 +1,6 @@
 ---
 name: daily-flight-plan
-description: Builds today's "🚀 Daily Flight Plan" journal entry by combining today's macOS Calendar agenda and Things.app deadline items, then creates it in Day One via the dayone CLI. Use whenever the user asks to plan their day, build/create/write their daily plan or flight plan, wants their agenda and to-dos put into Day One, or asks to sync Calendar/Things into their journal. Trigger even if they just say "do my daily plan" or "set up today's flight plan" without naming Calendar, Things, or Day One explicitly.
+description: Builds today's "🚀 Daily Flight Plan" journal entry by combining today's macOS Calendar agenda and every item in Things.app's Today list (sorted into sections by tag), then creates it in Day One via the dayone CLI. Use whenever the user asks to plan their day, build/create/write their daily plan or flight plan, wants their agenda and to-dos put into Day One, or asks to sync Calendar/Things into their journal. Trigger even if they just say "do my daily plan" or "set up today's flight plan" without naming Calendar, Things, or Day One explicitly.
 ---
 
 # Daily Flight Plan
@@ -21,7 +21,7 @@ hit it:
    `scripts/calendar_agenda` uses EventKit instead (the same framework
    Calendar.app and Day One itself use) and returns in well under a second.
 2. **Things' SQLite database is locked while Things is running**, and recent
-   edits may only exist in the `-wal` sidecar — `scripts/things_deadlines.py`
+   edits may only exist in the `-wal` sidecar — `scripts/things_today.py`
    stages a safe copy before querying, same pattern as the `things-report`
    skill.
 3. **The `dayone` CLI can only create entries, never edit or search them.**
@@ -61,34 +61,38 @@ permission popup). Tell them to add
 then try again. Don't try to work around it (no fallback to AppleScript —
 see above for why).
 
-Split the results by `calendar`: events where `calendar == "Work"` feed the
-template's Work work section; everything else feeds Agenda. This split is
-specific to this user's setup (their work calendar is literally named
-"Work" in Calendar.app) — if a future user's calendar is named differently,
-ask rather than assume.
+All events feed the Agenda section together, regardless of which calendar
+they're on — including the `Work` calendar. The template's Work section is
+untouched scaffold (its own fixed checklist items only); don't split events
+out to it.
 
-## Step 3: Pull today's deadline-bearing Things to-dos
+## Step 3: Pull and sort today's Things Today list
 
 ```bash
-python3 scripts/things_deadlines.py   # --end YYYY-MM-DD for a different day
+python3 scripts/things_today.py   # --end YYYY-MM-DD for a different day
 ```
 
-Prints a JSON array of `{title, deadline, project, overdue}`, sorted
-soonest-first. This is deliberately narrower than "everything in Things'
-Today list" — only to-dos with a real deadline set (today or earlier) go
-into the plan's Time-sensitive section. A to-do merely *scheduled* for today
-without a deadline doesn't appear here (that's an intentional choice the
-user made, not a bug to fix).
+Prints one JSON object keyed by template section name — every item
+currently in Things' Today list (open to-dos scheduled for today or
+earlier), already sorted into the section its tags map to and subgrouped by
+project/area. This is **all** of today's Things items, not a deadline-only
+subset — see the script's docstring for the exact tag → section priority
+order (🚨Important → Time-sensitive; Molly/Claire/Mom/Social → People &
+phone; Learning → Professional Growth; tag name matching a heading → that
+heading; anything left over → Other). Don't recompute this mapping by hand
+from the raw to-do list — the priority order and project-subgrouping logic
+are intricate enough that they live in the script specifically so they're
+applied consistently every run.
 
 ## Step 4: Compose the entry text
 
 Read `references/daily_flight_plan_template.md` — it has the exact template
 text (confirmed headings vs. bold, checkboxes vs. plain bullets against a
-real entry) with three placeholders (`{{TIME_SENSITIVE}}`, `{{AGENDA}}`,
-`{{WORK_AGENDA}}`) and the formatting rules for each. Fill those three in
-from steps 2-3; leave every other line exactly as written in the
-reference — those sections are the user's own daily-habit checklist, not
-data-driven, and shouldn't be touched.
+real entry) with the placeholders and formatting rules for each, including
+how to render `things_today.py`'s grouped output as bold-labeled
+sub-lists. Fill those in from steps 2-3; leave Basics and Inboxes exactly as
+written in the reference — those are the user's own daily-habit checklist,
+not data-driven, and shouldn't be touched.
 
 ## Step 5: Create the entry
 
@@ -111,7 +115,7 @@ argument. Notes:
   `dayone2` if the user has separately run Day One's "Install Command Line
   Tools" and it resolves on `PATH`).
 
-After creating it, tell the user it's done and briefly summarize what went
-into Agenda/Work work/Time-sensitive (counts are enough — "3 meetings, 2 work
-events, 1 deadline item" — no need to restate every line back to them, they
-can just open Day One).
+After creating it, tell the user it's done and briefly summarize counts per
+section that actually got data (e.g. "5 calendar events, 2 time-sensitive,
+6 work items, 3 in Other" — skip sections that ended up empty) — no need to
+restate every line back to them, they can just open Day One.

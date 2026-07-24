@@ -6,10 +6,11 @@ so the skill reproduces this text directly). Confirmed formatting: `#`/`##`
 are true Day One headings (not just bold text), and every bullet is a
 checkbox (`- [ ] `, not a plain `-`).
 
-Three sections get data-driven content each day; every other section is
-reproduced exactly as-is, untouched, for the user to fill in by hand later
-(that's the existing daily ritual — don't try to be clever and auto-fill
-Breakfast/Lunch/Dinner, People & phone, Laptop, or Home).
+Every section except Basics and Inboxes can receive data-driven content —
+Agenda from Calendar, everything else from `things_today.py`'s tag-based
+sort of the Things Today list (see that script's docstring for the mapping
+rules and priority order). Basics and Inboxes are always reproduced exactly
+as-is, untouched — pure daily-habit checklists with no data source.
 
 ```markdown
 # 🚀 Daily Flight Plan
@@ -41,20 +42,22 @@ Breakfast/Lunch/Dinner, People & phone, Laptop, or Home).
 
 ## People & phone
 
-- [ ] TODO
+{{PEOPLE_AND_PHONE}}
 
-## Work work
+## Work
 
-{{WORK_AGENDA}}
+{{WORK}}
 - [ ] Catch up work Reminders®
 - [ ] Work email zero inbox
 
 ## Professional Growth
 
+{{PROFESSIONAL_GROWTH}}
 - [ ] Do [hackerrank](https://www.hackerrank.com/) or leetcode.com
 
 ## Physical 💪🏻
 
+{{PHYSICAL}}
 - [ ] Walk
 - [ ] Sprint + box, balance ball, yoga, swim, bike
 - [ ] ❗️Plantar fasciitis PT
@@ -62,32 +65,64 @@ Breakfast/Lunch/Dinner, People & phone, Laptop, or Home).
 
 ## Laptop
 
-- [ ] TODO
+{{LAPTOP}}
 
 ## Home
 
-- [ ] TODO
+{{HOME}}
+
+## Other
+
+{{OTHER}}
 ```
 
-## Filling the three placeholders
+`## Other` is a new section, not part of the user's original template — it
+exists purely as the catch-all for Things Today items whose tags don't map
+anywhere else (see `things_today.py`), so nothing from today's list silently
+disappears. If it ends up empty most days, that's fine; leave it in rather
+than only adding it conditionally, so the structure stays predictable.
 
-- **`{{TIME_SENSITIVE}}`** — one `- [ ] ` line per item from
-  `things_deadlines.py`'s output. Format: `- [ ] {title} ({project})` if the
-  to-do has a project, else `- [ ] {title}`; prefix with `⚠️ ` when
-  `"overdue": true`. If the list is empty, use a single line:
-  `- [ ] Nothing with a deadline today`.
-- **`{{AGENDA}}`** — one `- [ ] ` line per event from `calendar_agenda`
-  whose `calendar` is **not** `"Work"`, sorted by start time (the script
-  already sorts). Format: `- [ ] {start time}–{end time} {title}` (e.g.
-  `- [ ] 9:00 AM–9:30 AM Standup`) for timed events, or `- [ ] All day: {title}`
-  when `isAllDay` is true. If there are none, use
-  `- [ ] Nothing on the calendar today`.
-- **`{{WORK_AGENDA}}`** — same formatting as Agenda, but only events whose
-  `calendar` **is** `"Work"`. This replaces the template's normal fixed
-  "Update here from work calendar" line — if there are no work events, keep
-  a single line `- [ ] No work events today` rather than leaving it blank,
-  so the checklist item count in Day One still makes sense.
+## Filling the placeholders
 
-Times should be formatted in the user's local time zone, 12-hour clock, no
-leading zero (e.g. `9:00 AM`, not `09:00`) — match the ambient style of the
-rest of the template rather than defaulting to 24-hour or ISO time.
+Run `scripts/things_today.py` — it returns one JSON object keyed by section
+name (`"Time-sensitive"`, `"People & phone"`, `"Work"`, `"Professional
+Growth"`, `"Physical"`, `"Laptop"`, `"Home"`, `"Other"`), already sorted and
+subgrouped by project/area, with ungrouped items first. Only sections with
+at least one item are present in the output — a missing key means empty,
+not an error.
+
+For each of those eight section keys, render its items like this:
+
+- Items with `"group": null` — plain `- [ ] {title}` lines, no label, listed
+  first.
+- Items with a non-null `"group"` — group consecutive items under a bold
+  label line for the group name, blank line before each new group:
+  ```
+  **{group}**
+  - [ ] {title}
+  - [ ] {title}
+  ```
+- If a section has **no** Things items and no fixed scaffold lines of its
+  own (Time-sensitive, People & phone, Laptop, Home, Other), use a single
+  line: `- [ ] Nothing here today` — otherwise the heading would be bare
+  with nothing under it.
+- Work, Professional Growth, and Physical always have their own fixed
+  scaffold lines regardless of Things data (see the template above) — if
+  `things_today.py` has no items for one of them, just omit the placeholder
+  entirely and let the fixed lines stand alone. Don't add a "Nothing here
+  today" line on top of an already-non-empty section.
+
+`{{AGENDA}}` is the one placeholder **not** driven by `things_today.py` — it
+comes from `scripts/calendar_agenda` instead (see SKILL.md step 2). One
+`- [ ] ` line per event, **all calendars merged together** (including the
+`Work` calendar — don't split it out), sorted by start time (the script
+already sorts). Format: `- [ ] {start time}–{end time} {title}` (e.g.
+`- [ ] 9:00 AM–9:30 AM Standup`) for timed events, or `- [ ] All day:
+{title}` when `isAllDay` is true. If there are none, use `- [ ] Nothing on
+the calendar today`. Times in the user's local time zone, 12-hour clock, no
+leading zero (`9:00 AM`, not `09:00`).
+
+Note the Work, Professional Growth, and Physical sections each mix
+data-driven items *and* fixed scaffold lines in the same section — put the
+Things items first, then the section's fixed lines below them (already
+reflected in the template above).
