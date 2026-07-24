@@ -105,7 +105,8 @@ def main():
     matches = []
     for r in rows:
         text = r["ZMARKDOWNTEXT"] or ""
-        first_line = text.splitlines()[0].strip() if text else ""
+        lines = text.splitlines()
+        first_line = lines[0].strip() if lines else ""
         if first_line != MARKER:
             continue
         created = None
