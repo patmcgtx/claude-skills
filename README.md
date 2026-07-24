@@ -18,6 +18,7 @@ New skills added here are picked up automatically — no restart needed.
 |---|---|
 | [things-report](things-report/SKILL.md) | Reports on a Things.app to-do database: completed-work summaries, backlog health, velocity trends, per-project breakdowns, and stale/aging-project callouts. |
 | [ynab-budget-review](ynab-budget-review/SKILL.md) | Reviews a YNAB Budget CSV export and summarizes budget health, including overspending, low categories, unbudgeted spending, and notable trends. |
+| [daily-flight-plan](daily-flight-plan/SKILL.md) | Builds a daily flight plan from current tasks and priorities, outlining the day’s top objectives, sequencing, and focus blocks. |
 
 ## Layout
 
