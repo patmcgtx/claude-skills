@@ -66,7 +66,7 @@ import sqlite3
 import sys
 import tempfile
 from collections import OrderedDict, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime
 
 TYPE_TODO = 0
 STATUS_OPEN = 0
@@ -147,11 +147,11 @@ def stage_db_copy(source_path, workdir):
 
 
 def connect(db_path):
-    workdir = tempfile.mkdtemp(prefix="things_today_")
-    staged = stage_db_copy(db_path, workdir)
+    workdir = tempfile.TemporaryDirectory(prefix="things_today_")
+    staged = stage_db_copy(db_path, workdir.name)
     conn = sqlite3.connect(staged)
     conn.row_factory = sqlite3.Row
-    return conn
+    return conn, workdir
 
 
 def target_section(tags):
@@ -241,15 +241,18 @@ def main():
     args = parser.parse_args()
 
     end = (
-        datetime.fromisoformat(args.end).replace(tzinfo=timezone.utc)
+        datetime.fromisoformat(args.end)
         if args.end
-        else datetime.now(timezone.utc)
+        else datetime.now().astimezone()
     )
 
     db_path = resolve_db_path(args.db)
-    conn = connect(db_path)
-    result = query_today_items(conn, end)
-    conn.close()
+    conn, workdir = connect(db_path)
+    try:
+        result = query_today_items(conn, end)
+    finally:
+        conn.close()
+        workdir.cleanup()
     print(json.dumps(result, indent=2, ensure_ascii=False))
 
 

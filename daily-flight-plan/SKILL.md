@@ -109,7 +109,7 @@ which sections have data on a given day.
 ## Step 5: Create the entry
 
 ```bash
-cat entry.md | "/Applications/Day One.app/Contents/MacOS/dayone" -j "📆Daily" new
+"/Applications/Day One.app/Contents/MacOS/dayone" new -j "📆Daily" < entry.md
 ```
 
 Write the composed text to a file first and pipe it in via stdin (the CLI's

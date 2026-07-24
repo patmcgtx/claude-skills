@@ -80,6 +80,7 @@ let events = store.events(matching: predicate).sorted { $0.startDate < $1.startD
 
 let isoFormatter = ISO8601DateFormatter()
 isoFormatter.formatOptions = [.withInternetDateTime]
+isoFormatter.timeZone = TimeZone.current
 
 struct EventOut: Encodable {
     let title: String
@@ -101,5 +102,14 @@ let out = events.map { e in
 
 let encoder = JSONEncoder()
 encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-let data = try! encoder.encode(out)
-print(String(data: data, encoding: .utf8)!)
+do {
+    let data = try encoder.encode(out)
+    guard let output = String(data: data, encoding: .utf8) else {
+        FileHandle.standardError.write("Failed to render calendar JSON as UTF-8\n".data(using: .utf8)!)
+        exit(1)
+    }
+    print(output)
+} catch {
+    FileHandle.standardError.write("Failed to encode calendar JSON: \(error)\n".data(using: .utf8)!)
+    exit(1)
+}

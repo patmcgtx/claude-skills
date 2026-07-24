@@ -54,15 +54,16 @@ template.
 
 ## Final decisions (confirmed with user)
 
-- **Section mapping**: "Agenda" = today's Calendar events (personal
-  calendars, time order). "Time-sensitive" = Things to-dos with a real
-  deadline set that's today or overdue — a stricter subset than the whole
-  Today list; to-dos scheduled for today without a deadline don't land
-  anywhere in the entry (that's intentional, per the user).
+- **Section mapping**: "Agenda" = today's Calendar events (all calendars
+  merged together, time order). Things today items are sectioned by tag in
+  priority order: `🚨Important` → Time-sensitive; `Molly` / `Claire` /
+  `Mom` / `Social` → People & phone; `Learning` → Professional Growth;
+  tags matching a template heading land in that section; everything else
+  falls through to `Other`.
 - **Work calendar**: named exactly `Work` in the macOS Calendar app sidebar.
-  It *is* visible to EventKit (not a separate inaccessible system) — its
-  events should populate the "Work work" section specifically, separate
-  from the personal-calendar "Agenda" section.
+  It *is* visible to EventKit (not a separate inaccessible system), but its
+  events still flow into the shared "Agenda" section with the rest of the
+  day's calendar.
 - **Everything else in the template** (Basics, Inboxes, Physical, People &
   phone, Laptop, Home, Professional Growth): reproduced verbatim/untouched
   each day — no data source, just scaffold.
@@ -75,10 +76,10 @@ template.
 - `scripts/calendar_agenda.swift` (+ compiled `calendar_agenda` binary) —
   EventKit-based, prints JSON events for a date. Compiles clean, fails with a
   clear message until Calendar access is granted (see below).
-- `scripts/things_deadlines.py` — open Things to-dos with a deadline today or
-  earlier, honors the "Exclude" tag convention from `things-report`. Tested
-  against the real Things DB: runs fine (returned `[]`, no deadline items
-  right now).
+- `scripts/things_today.py` — open Things "Today" to-dos (`start = 1`) whose
+  start date decodes to today or earlier, grouped by section and
+  project/area. Tested against the real Things DB: runs fine and mirrors the
+  app's Today view more closely than deadline-only filtering.
 - `scripts/check_existing_plan.py` — checks Day One's real local DB
   (`~/Library/Group Containers/*.dayoneapp*/Data/Documents/DayOne.sqlite`)
   for an existing plan entry on a given date, without printing full entry
@@ -95,9 +96,8 @@ template.
 2. Write `references/daily_flight_plan_template.md` with the pasted template
    text as the literal scaffold to fill in.
 3. Write `SKILL.md` tying the three scripts together: run
-   `things_deadlines.py` + `calendar_agenda` (split Agenda vs. Work work by
-   calendar name `Work`) + `check_existing_plan.py` (warn/confirm before
-   duplicating), compose the filled-in template text, call
-   `dayone new -j "📆Daily" -- ` with that text on stdin.
+   `things_today.py` + `calendar_agenda` + `check_existing_plan.py`
+   (warn/confirm before duplicating), compose the filled-in template text,
+   then call `dayone new -j "📆Daily"` with that text on stdin.
 4. Test end-to-end once Calendar permission is granted (steps 1-3 are done
    or ready; this is the only remaining blocker).

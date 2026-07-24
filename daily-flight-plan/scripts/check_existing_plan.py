@@ -67,11 +67,11 @@ def stage_db_copy(source_path, workdir):
 
 
 def connect(db_path):
-    workdir = tempfile.mkdtemp(prefix="dayone_check_")
-    staged = stage_db_copy(db_path, workdir)
+    workdir = tempfile.TemporaryDirectory(prefix="dayone_check_")
+    staged = stage_db_copy(db_path, workdir.name)
     conn = sqlite3.connect(staged)
     conn.row_factory = sqlite3.Row
-    return conn
+    return conn, workdir
 
 
 def main():
@@ -87,31 +87,33 @@ def main():
     )
 
     db_path = resolve_db_path(args.db)
-    conn = connect(db_path)
-
-    rows = conn.execute(
-        """
-        SELECT e.ZMARKDOWNTEXT, e.ZCREATIONDATE, j.ZNAME
-        FROM ZENTRY e
-        LEFT JOIN ZJOURNAL j ON e.ZJOURNAL = j.Z_PK
-        WHERE e.ZGREGORIANYEAR = ? AND e.ZGREGORIANMONTH = ? AND e.ZGREGORIANDAY = ?
-        """,
-        (target.year, target.month, target.day),
-    ).fetchall()
-    conn.close()
+    conn, workdir = connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT e.ZMARKDOWNTEXT, e.ZCREATIONDATE, j.ZNAME
+            FROM ZENTRY e
+            LEFT JOIN ZJOURNAL j ON e.ZJOURNAL = j.Z_PK
+            WHERE e.ZGREGORIANYEAR = ? AND e.ZGREGORIANMONTH = ? AND e.ZGREGORIANDAY = ?
+            """,
+            (target.year, target.month, target.day),
+        ).fetchall()
+    finally:
+        conn.close()
+        workdir.cleanup()
 
     matches = []
     for r in rows:
         text = r["ZMARKDOWNTEXT"] or ""
-        if MARKER not in text:
+        first_line = text.splitlines()[0].strip() if text else ""
+        if first_line != MARKER:
             continue
-        first_line = text.strip().splitlines()[0] if text.strip() else ""
         created = None
         if r["ZCREATIONDATE"] is not None:
             created = (CORE_DATA_EPOCH + timedelta(seconds=r["ZCREATIONDATE"])).isoformat()
         matches.append({"title_line": first_line, "created": created, "journal": r["ZNAME"]})
 
-    print(json.dumps({"exists": len(matches) > 0, "matches": matches}, indent=2))
+    print(json.dumps({"exists": len(matches) > 0, "matches": matches}, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
