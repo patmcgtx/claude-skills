@@ -107,12 +107,11 @@ def main():
         text = r["ZMARKDOWNTEXT"] or ""
         lines = text.splitlines()
         first_line = (lines[0] if lines else "").strip()
-        if first_line != MARKER:
-            continue
-        created = None
-        if r["ZCREATIONDATE"] is not None:
-            created = (CORE_DATA_EPOCH + timedelta(seconds=r["ZCREATIONDATE"])).isoformat()
-        matches.append({"title_line": first_line, "created": created, "journal": r["ZNAME"]})
+        if first_line == MARKER:
+            created = None
+            if r["ZCREATIONDATE"] is not None:
+                created = (CORE_DATA_EPOCH + timedelta(seconds=r["ZCREATIONDATE"])).isoformat()
+            matches.append({"title_line": first_line, "created": created, "journal": r["ZNAME"]})
 
     print(json.dumps({"exists": len(matches) > 0, "matches": matches}, indent=2, ensure_ascii=False))
 

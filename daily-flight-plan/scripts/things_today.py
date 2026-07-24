@@ -244,7 +244,7 @@ def main():
     end = (
         datetime.fromisoformat(args.end)
         if args.end
-        else datetime.now().astimezone()
+        else datetime.now().astimezone(tz=None)
     )
 
     db_path = resolve_db_path(args.db)
