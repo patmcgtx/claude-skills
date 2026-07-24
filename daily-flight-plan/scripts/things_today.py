@@ -11,9 +11,9 @@ past (2019, 2021...), clearly stale remnants from before the to-do was
 demoted to Someday, not things Things' own Today perspective would ever
 show. Filtering to start=1 only matches what the app actually displays.
 
-Two more orphan traps, same root cause as the trashed-project issue documented
-in the things-report skill (trashed=0 doesn't cascade to children in this
-schema):
+Three more orphan traps, same root cause as the trashed-project issue
+documented in the things-report skill (trashed=0 doesn't cascade to children
+in this schema):
   - A recurring to-do's generated instances point back at their template row
     via rt1_repeatingTemplate. If the user deletes/trashes the recurring
     template itself, already-generated instance rows can be left behind with
@@ -22,6 +22,13 @@ schema):
     instances sitting open, 3 of which had startDate <= today and would
     otherwise show up as real Today items every single day indefinitely.
     Excluded via `tmpl.trashed = 0`.
+  - A to-do's project can itself be trashed (moved to the Trash in Things)
+    while the to-do's own `trashed` column stays 0 -- confirmed on this
+    user's real data: the project "🎹Get my piano tuned" is in the Trash,
+    but its child to-do "Set up appt" was still showing up as a live Today
+    item. Excluded via `proj.trashed = 0`. This is the exact same bug
+    things-report's schema notes describe for its own report queries; it
+    just hadn't been hit here yet when this script was first written.
   - Similarly, a to-do's own status can stay open even after its parent
     project is marked completed or canceled -- excluded via `proj.status = 0`
     (no matches on this user's data yet, but the shape of the bug is
@@ -175,7 +182,7 @@ def query_today_items(conn, end_date):
         WHERE t.type = ? AND t.status = ? AND t.trashed = 0 AND t.{not_template}
           AND t.start = ? AND t.startDate IS NOT NULL
           AND (t.rt1_repeatingTemplate IS NULL OR tmpl.trashed = 0)
-          AND (proj.uuid IS NULL OR proj.status = 0)
+          AND (proj.uuid IS NULL OR (proj.status = 0 AND proj.trashed = 0))
         """.format(not_template=NOT_A_TEMPLATE),
         (TYPE_TODO, STATUS_OPEN, START_ANYTIME),
     ).fetchall()
